@@ -1,0 +1,5 @@
+{
+  "name": "WebToApp Instant",
+  "description": "Convert any website URL into a standalone mobile app. Configure your icon and details manually, then build instantly on the cloud.",
+  "requestFramePermissions": []
+}
