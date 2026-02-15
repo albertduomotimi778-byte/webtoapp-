@@ -1,8 +1,8 @@
 
 
-import { AppPermissions, MonetizationSettings } from "../types";
+import { AppPermissions } from "../types";
 
-export const getAndroidManifest = (packageName: string, appName: string, permissions: AppPermissions, monetization: MonetizationSettings) => `<?xml version="1.0" encoding="utf-8"?>
+export const getAndroidManifest = (packageName: string, appName: string, permissions: AppPermissions) => `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
@@ -38,12 +38,6 @@ export const getAndroidManifest = (packageName: string, appName: string, permiss
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.App">
         
-        ${monetization.enabled ? `
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="${monetization.appId}"/>
-        ` : ''}
-
         <activity
             android:name="${packageName}.MainActivity"
             android:exported="true"
@@ -53,12 +47,6 @@ export const getAndroidManifest = (packageName: string, appName: string, permiss
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <receiver android:name="${packageName}.NotificationReceiver" android:exported="false">
-            <intent-filter>
-                <action android:name="com.webtoapp.EXPIRED" />
-            </intent-filter>
-        </receiver>
 
     </application>
 
@@ -73,22 +61,7 @@ export const getStyles = (color: string) => `<resources>
     </style>
 </resources>`;
 
-export const getNotificationReceiver = (packageName: string, appName: string) => `package ${packageName};
-
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.widget.Toast;
-
-public class NotificationReceiver extends BroadcastReceiver {
-    @Override
-    public void onReceive(Context context, Intent intent) {
-        Toast.makeText(context, "${appName} subscription has expired.", Toast.LENGTH_LONG).show();
-    }
-}
-`;
-
-export const getMainActivity = (packageName: string, url: string, permissions: AppPermissions, isPremium: boolean, monetization: MonetizationSettings, appName: string) => `package ${packageName};
+export const getMainActivity = (packageName: string, url: string, permissions: AppPermissions, isPremium: boolean, appName: string) => `package ${packageName};
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -143,61 +116,27 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-${monetization.enabled ? `
-import com.google.android.gms.ads.MobileAds;
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdView;
-import com.google.android.gms.ads.AdSize;
-` : ''}
-
 public class MainActivity extends Activity {
 
     private WebView myWebView;
     private FrameLayout rootLayout;
-    private FrameLayout lockedContainer;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
     
     private static final String TARGET_URL = "${url}";
     private static final String APP_NAME = "${appName}";
     
-    // IAP Config
-    private static final boolean IAP_ENABLED = ${monetization.iapEnabled};
-    private static final String IAP_MODE = "${monetization.iapMode}"; 
-    private static final String IAP_PLAN = "${monetization.subscriptionPlan}"; 
-    private static final String DISPLAY_PRICE = "${monetization.displayPrice}";
-    private static final String STORE_URL = "${monetization.storeUrl}";
-    private static final String SUCCESS_URL = "${monetization.successUrl}";
-
     // File Upload Variables
     private ValueCallback<Uri> mUploadMessage;
     public ValueCallback<Uri[]> uploadMessage;
     public static final int REQUEST_SELECT_FILE = 100;
     private final static int FILECHOOSER_RESULTCODE = 1;
 
-    ${monetization.enabled ? 'private AdView mAdView;' : ''}
-    
-    private boolean isCurrentlyLocked = false;
-    private Handler expiryCheckHandler = new Handler(Looper.getMainLooper());
-    private Runnable expiryCheckRunnable;
-
     public class WebAppInterface {
         Context mContext;
 
         WebAppInterface(Context c) {
             mContext = c;
-        }
-
-        @JavascriptInterface
-        public void lock() {
-            // Trigger the lock UI from JavaScript
-            runOnUiThread(() -> {
-                if (!isCurrentlyLocked) {
-                     showOfferStage();
-                     lockedContainer.setVisibility(View.VISIBLE);
-                     isCurrentlyLocked = true;
-                }
-            });
         }
 
         @JavascriptInterface
@@ -253,33 +192,6 @@ public class MainActivity extends Activity {
         rootLayout.addView(watermark, params);
         ` : ''}
 
-        ${monetization.enabled && monetization.bannerId ? `
-        // --- ADMOB BANNER SETUP ---
-        try {
-            MobileAds.initialize(this, initializationStatus -> {});
-            mAdView = new AdView(this);
-            mAdView.setAdSize(AdSize.BANNER);
-            mAdView.setAdUnitId("${monetization.bannerId}");
-            FrameLayout.LayoutParams adParams = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT, 
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            );
-            adParams.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-            rootLayout.addView(mAdView, adParams);
-            AdRequest adRequest = new AdRequest.Builder().build();
-            mAdView.loadAd(adRequest);
-            myWebView.setPadding(0, 0, 0, 150);
-        } catch (Exception e) {}
-        ` : ''}
-
-        // --- LOCKED APP VIEW SETUP ---
-        initLockedUI();
-        
-        // If "Locked App" mode is selected, show it immediately on start
-        if (IAP_ENABLED && IAP_MODE.equals("locked_app")) {
-             checkSubscriptionStatus();
-        }
-
         setContentView(rootLayout);
 
         setupWebView();
@@ -289,10 +201,6 @@ public class MainActivity extends Activity {
             myWebView.loadUrl(TARGET_URL);
         } else {
             myWebView.restoreState(savedInstanceState);
-        }
-
-        if (IAP_ENABLED) {
-            startExpiryChecker();
         }
     }
 
@@ -306,8 +214,7 @@ public class MainActivity extends Activity {
         webSettings.setUserAgentString(userAgent.replace("; wv", ""));
         
         // --- PERFORMANCE SETTINGS ---
-        // Removed deprecated AppCache methods to fix build errors.
-        // We now rely on standard HTTP cache headers and setCacheMode.
+        // Removed deprecated AppCache methods.
         webSettings.setAllowFileAccess(true);
         webSettings.setRenderPriority(WebSettings.RenderPriority.HIGH);
         
@@ -377,7 +284,6 @@ public class MainActivity extends Activity {
             }
             @Override
             public void onPageFinished(WebView view, String url) {
-                if (IAP_ENABLED) checkSubscriptionStatus();
                 // Inject Polyfill for navigator.share to use native share sheet
                 view.evaluateJavascript("navigator.share = function(data) { window.WebToApp.share(data.title || '', data.text || '', data.url || ''); return Promise.resolve(); };", null);
             }
@@ -405,11 +311,6 @@ public class MainActivity extends Activity {
                 newWebView.setWebViewClient(new WebViewClient() {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                        if (IAP_ENABLED && SUCCESS_URL.length() > 0 && url != null && url.contains(SUCCESS_URL)) {
-                            dialog.dismiss();
-                            handlePurchaseSuccess();
-                            return true;
-                        }
                         return false;
                     }
                 });
@@ -453,314 +354,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    // --- PREMIUM UI SUITE ---
-
-    private void initLockedUI() {
-        lockedContainer = new FrameLayout(this);
-        lockedContainer.setBackgroundColor(Color.parseColor("#0F1115"));
-        lockedContainer.setVisibility(View.GONE);
-        rootLayout.addView(lockedContainer, new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-        // Don't show immediately unless in locked_app mode logic
-    }
-
-    private void showOfferStage() {
-        lockedContainer.removeAllViews();
-        
-        // Wrapper FrameLayout to overlay Close Button
-        FrameLayout wrapper = new FrameLayout(this);
-        wrapper.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        
-        // --- CONTENT LAYOUT ---
-        LinearLayout layout = createBaseLayout();
-        
-        TextView title = new TextView(this);
-        title.setText("Unlock " + APP_NAME + " Pro");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(28);
-        title.setTypeface(null, Typeface.BOLD);
-        title.setGravity(Gravity.CENTER);
-        layout.addView(title);
-        
-        TextView sub = new TextView(this);
-        sub.setText("Access premium features and remove restrictions.");
-        sub.setTextColor(Color.parseColor("#94a3b8"));
-        sub.setTextSize(14);
-        sub.setGravity(Gravity.CENTER);
-        sub.setPadding(60, 20, 60, 60);
-        layout.addView(sub);
-        
-        // Use custom DISPLAY_PRICE here
-        Button btn = createPrimaryButton("SUBSCRIBE NOW (" + DISPLAY_PRICE + ")");
-        btn.setOnClickListener(v -> startPaymentFlow());
-        layout.addView(btn);
-        
-        wrapper.addView(layout);
-        
-        // --- CLOSE BUTTON ---
-        // Only show close button if it's triggered via JS or if we allow exiting the lock
-        Button closeBtn = new Button(this);
-        closeBtn.setText("✕");
-        closeBtn.setTextColor(Color.parseColor("#94a3b8"));
-        closeBtn.setBackgroundColor(Color.TRANSPARENT);
-        closeBtn.setTextSize(24);
-        closeBtn.setPadding(20, 20, 20, 20);
-        
-        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, 
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        closeParams.gravity = Gravity.TOP | Gravity.END;
-        closeParams.setMargins(0, 50, 30, 0); // 50 margin for status bar area
-        closeBtn.setLayoutParams(closeParams);
-        
-        closeBtn.setOnClickListener(v -> unlockApp());
-        
-        wrapper.addView(closeBtn);
-        
-        lockedContainer.addView(wrapper);
-    }
-
-    private void showProcessingStage() {
-        lockedContainer.removeAllViews();
-        LinearLayout layout = createBaseLayout();
-        
-        ProgressBar pb = new ProgressBar(this);
-        layout.addView(pb);
-        
-        TextView msg = new TextView(this);
-        msg.setText("Initiating Secure Gateway...");
-        msg.setTextColor(Color.WHITE);
-        msg.setPadding(0, 40, 0, 0);
-        msg.setGravity(Gravity.CENTER);
-        layout.addView(msg);
-        
-        lockedContainer.addView(layout);
-        
-        new Handler(Looper.getMainLooper()).postDelayed(this::openMerchantWindow, 2000);
-    }
-
-    private void showSuccessStage() {
-        lockedContainer.removeAllViews();
-        LinearLayout layout = createBaseLayout();
-        
-        TextView check = new TextView(this);
-        check.setText("✓");
-        check.setTextColor(Color.parseColor("#10b981"));
-        check.setTextSize(80);
-        check.setTypeface(null, Typeface.BOLD);
-        layout.addView(check);
-        
-        TextView msg = new TextView(this);
-        msg.setText("Payment Confirmed!");
-        msg.setTextColor(Color.WHITE);
-        msg.setTextSize(22);
-        msg.setPadding(0, 20, 0, 0);
-        layout.addView(msg);
-        
-        lockedContainer.addView(layout);
-        new Handler(Looper.getMainLooper()).postDelayed(this::showFinalStage, 3000);
-    }
-
-    private void showFinalStage() {
-        lockedContainer.removeAllViews();
-        LinearLayout layout = createBaseLayout();
-        
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        long expiry = prefs.getLong("expiry_ts", 0);
-        String dateStr = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(new Date(expiry));
-        
-        TextView title = new TextView(this);
-        title.setText("Welcome to Pro");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(26);
-        title.setTypeface(null, Typeface.BOLD);
-        layout.addView(title);
-        
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(createRoundedRect("#15171C", 30));
-        card.setPadding(60, 60, 60, 60);
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        cp.setMargins(60, 40, 60, 60);
-        card.setLayoutParams(cp);
-        
-        card.addView(createKeyValueRow("Plan Type", IAP_PLAN.toUpperCase()));
-        card.addView(createKeyValueRow("Status", "ACTIVE"));
-        card.addView(createKeyValueRow("Expires On", dateStr));
-        
-        layout.addView(card);
-        
-        Button btn = createPrimaryButton("CONTINUE TO APP");
-        btn.setOnClickListener(v -> unlockApp());
-        layout.addView(btn);
-        
-        lockedContainer.addView(layout);
-    }
-
-    private LinearLayout createKeyValueRow(String key, String val) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, 10, 0, 10);
-        TextView k = new TextView(this); k.setText(key); k.setTextColor(Color.parseColor("#64748b")); k.setTextSize(12); k.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1));
-        TextView v = new TextView(this); v.setText(val); v.setTextColor(Color.WHITE); v.setTextSize(12); v.setTypeface(null, Typeface.BOLD);
-        row.addView(k); row.addView(v);
-        return row;
-    }
-
-    private LinearLayout createBaseLayout() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.VERTICAL);
-        l.setGravity(Gravity.CENTER);
-        l.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
-        AlphaAnimation anim = new AlphaAnimation(0f, 1f); anim.setDuration(500); l.startAnimation(anim);
-        return l;
-    }
-
-    private Button createPrimaryButton(String text) {
-        Button b = new Button(this);
-        b.setText(text);
-        b.setTextColor(Color.BLACK);
-        b.setTypeface(null, Typeface.BOLD);
-        GradientDrawable gd = new GradientDrawable();
-        gd.setColor(Color.WHITE);
-        gd.setCornerRadius(20);
-        b.setBackground(gd);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, 140);
-        p.setMargins(80, 20, 80, 20);
-        b.setLayoutParams(p);
-        return b;
-    }
-
-    private GradientDrawable createRoundedRect(String color, int radius) {
-        GradientDrawable gd = new GradientDrawable();
-        gd.setColor(Color.parseColor(color));
-        gd.setCornerRadius(radius);
-        return gd;
-    }
-
-    // --- LOGIC GATE ---
-
-    private void startPaymentFlow() {
-        showProcessingStage();
-    }
-
-    private void openMerchantWindow() {
-        final WebView paymentWebView = new WebView(this);
-        paymentWebView.getSettings().setJavaScriptEnabled(true);
-        paymentWebView.getSettings().setDomStorageEnabled(true);
-        final Dialog dialog = new Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
-        dialog.setContentView(paymentWebView);
-        paymentWebView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                if (url != null && url.contains(SUCCESS_URL)) {
-                    dialog.dismiss();
-                    handlePurchaseSuccess();
-                    return true;
-                }
-                return false;
-            }
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                if (url != null && url.contains(SUCCESS_URL)) {
-                    dialog.dismiss();
-                    handlePurchaseSuccess();
-                }
-            }
-        });
-        dialog.show();
-        paymentWebView.loadUrl(STORE_URL);
-    }
-
-    private void handlePurchaseSuccess() {
-        long now = System.currentTimeMillis();
-        long duration = IAP_PLAN.equals("yearly") ? (365L * 24 * 60 * 60 * 1000L) : (30L * 24 * 60 * 60 * 1000L);
-        long expiry = now + duration;
-        
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        prefs.edit()
-            .putBoolean("is_premium", true)
-            .putLong("expiry_ts", expiry)
-            .apply();
-        
-        injectJSStatus(true);
-        runOnUiThread(this::showSuccessStage);
-    }
-
-    private void checkSubscriptionStatus() {
-        if (!IAP_ENABLED) return;
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        boolean isPremium = prefs.getBoolean("is_premium", false);
-        long expiry = prefs.getLong("expiry_ts", 0);
-        
-        boolean isValid = isPremium && System.currentTimeMillis() < expiry;
-        
-        injectJSStatus(isValid);
-
-        if (isValid) {
-            unlockApp();
-        } else {
-            if (isPremium) handleExpiration();
-            if (IAP_MODE.equals("locked_app")) {
-                lockApp();
-            }
-        }
-    }
-
-    private void startExpiryChecker() {
-        expiryCheckRunnable = new Runnable() {
-            @Override
-            public void run() {
-                checkSubscriptionStatus();
-                expiryCheckHandler.postDelayed(this, 10000); // Check every 10s
-            }
-        };
-        expiryCheckHandler.post(expiryCheckRunnable);
-    }
-
-    private void handleExpiration() {
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        prefs.edit().clear().apply();
-        injectJSStatus(false);
-        runOnUiThread(() -> {
-            Toast.makeText(this, "Subscription Expired", Toast.LENGTH_LONG).show();
-            // showOfferStage(); - Handled by lockApp if needed, or user action
-        });
-    }
-
-    private void lockApp() {
-        if (isCurrentlyLocked) return;
-        isCurrentlyLocked = true;
-        runOnUiThread(() -> {
-            showOfferStage(); // Ensure layout is built with current state
-            lockedContainer.setVisibility(View.VISIBLE);
-            myWebView.setVisibility(View.GONE);
-        });
-    }
-
-    private void unlockApp() {
-        isCurrentlyLocked = false;
-        runOnUiThread(() -> {
-            lockedContainer.setVisibility(View.GONE);
-            myWebView.setVisibility(View.VISIBLE);
-        });
-    }
-
-    private void injectJSStatus(boolean isPremium) {
-        String js;
-        if (isPremium) {
-            js = "window.isNativeAppPremium = true; window.onNativePremiumActive = true; window.dispatchEvent(new Event('native-premium-active'));";
-        } else {
-            js = "window.isNativeAppPremium = false; delete window.onNativePremiumActive; window.dispatchEvent(new Event('native-premium-expired'));";
-        }
-        final String runJs = js;
-        runOnUiThread(() -> {
-             if (myWebView != null) myWebView.evaluateJavascript(runJs, null);
-        });
-    }
-
     private void hideSystemUI() {
         getWindow().getDecorView().setSystemUiVisibility(
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
@@ -795,13 +388,12 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (isCurrentlyLocked) return; // Disable back button when locked
         if (myWebView.canGoBack()) myWebView.goBack();
         else super.onBackPressed();
     }
 }`;
 
-export const getBuildGradle = (packageName: string, monetization: MonetizationSettings) => `plugins {
+export const getBuildGradle = (packageName: string) => `plugins {
     id 'com.android.application'
 }
 
@@ -837,28 +429,39 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    ${monetization.enabled ? "implementation 'com.google.android.gms:play-services-ads:22.5.0'" : ""}
 }`;
 
-export const getGithubWorkflow = (appName: string) => `name: Build Android App
+export const getGithubWorkflow = (appName: string) => `name: Build Android APK
+
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-java@v3
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
       with:
         java-version: '17'
         distribution: 'temurin'
-    - uses: gradle/actions/setup-gradle@v3
+
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
       with:
-        gradle-version: '8.4'
-    - run: gradle assembleDebug
-    - uses: actions/upload-artifact@v4
+        gradle-version: '8.1.1'
+
+    - name: Build with Gradle
+      run: gradle assembleDebug --no-daemon
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
       with:
         name: ${appName.replace(/\s+/g, '-')}-APK
         path: app/build/outputs/apk/debug/app-debug.apk
