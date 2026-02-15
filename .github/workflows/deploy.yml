@@ -30,9 +30,8 @@ jobs:
       - name: Build
         env:
            CI: false 
-           PUBLIC_URL: /${{ github.event.repository.name }}/
-        # Try to run build script, fall back gracefully if missing scripts but package.json exists
-        run: npm run build -- --base=/${{ github.event.repository.name }}/
+        # Run build with relative base path to support renaming/deployment to any subpath
+        run: npm run build -- --base=./
 
       - name: Check output directory and handle SPA fallback
         id: check_dir
