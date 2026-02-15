@@ -2,7 +2,7 @@
 
 import { AppConfig, VirtualFile } from "../types";
 
-export const getIosContentView = (url: string, isPremium: boolean, displayPrice: string) => `import SwiftUI
+export const getIosContentView = (url: string, isPremium: boolean) => `import SwiftUI
 import WebKit
 
 struct WebView: UIViewRepresentable {
@@ -151,8 +151,7 @@ export const getIosProjectFiles = (config: AppConfig): VirtualFile[] => {
 
     // This is a simplified Swift package structure
     // Note: iOS template update is minimal as requested focus was "Java script logic" which implies Android Java/Web bridge primarily.
-    // Display Price is passed but Swift UI construction is simplified here compared to Java one.
-    add("ContentView.swift", getIosContentView(config.url, config.isPremium, config.monetization.displayPrice));
+    add("ContentView.swift", getIosContentView(config.url, config.isPremium));
     add("App.swift", getIosApp());
     add(".github/workflows/package_ios.yml", getIosWorkflow(config.name));
     
