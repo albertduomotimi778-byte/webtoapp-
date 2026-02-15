@@ -1,6 +1,6 @@
 
 import { AppConfig, VirtualFile } from "../types";
-import { getAndroidManifest, getMainActivity, getBuildGradle, getGithubWorkflow, getStyles, getNotificationReceiver } from "./androidTemplates";
+import { getAndroidManifest, getMainActivity, getBuildGradle, getGithubWorkflow, getStyles } from "./androidTemplates";
 import { getDesktopProjectFiles } from "./desktopTemplates";
 import { getIosProjectFiles } from "./iosTemplates";
 
@@ -16,7 +16,7 @@ export const generateProjectFiles = (config: AppConfig): VirtualFile[] => {
       return getIosProjectFiles(config);
   }
 
-  const { url, name, iconBase64, themeColor, permissions, isPremium, monetization } = config;
+  const { url, name, iconBase64, themeColor, permissions, isPremium } = config;
   
   const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   const validPackageSuffix = cleanName.match(/^[0-9]/) || cleanName.length === 0 ? `app${cleanName}` : cleanName;
@@ -61,12 +61,11 @@ task clean(type: Delete) {
 include ':app'`);
 
   add(".github/workflows/build_apk.yml", getGithubWorkflow(name));
-  add("app/build.gradle", getBuildGradle(packageName, monetization));
-  add("app/src/main/AndroidManifest.xml", getAndroidManifest(packageName, name, permissions, monetization));
+  add("app/build.gradle", getBuildGradle(packageName));
+  add("app/src/main/AndroidManifest.xml", getAndroidManifest(packageName, name, permissions));
   
   const javaPath = `app/src/main/java/${packagePath}`;
-  add(`${javaPath}/MainActivity.java`, getMainActivity(packageName, url, permissions, isPremium, monetization, name));
-  add(`${javaPath}/NotificationReceiver.java`, getNotificationReceiver(packageName, name));
+  add(`${javaPath}/MainActivity.java`, getMainActivity(packageName, url, permissions, isPremium, name));
 
   add("app/src/main/res/values/strings.xml", `<resources><string name="app_name">${name}</string></resources>`);
   add("app/src/main/res/values/themes.xml", getStyles(themeColor));
