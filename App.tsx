@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppConfig, GenerationStep, AppPermissions, Platform } from './types';
 import PhonePreview from './components/PhonePreview';
@@ -491,7 +490,7 @@ const App: React.FC = () => {
   const [tokenError, setTokenError] = useState<string | null>(null);
 
   // Mobile Accordion State
-  const [openSection, setOpenSection] = useState<'basic' | 'perms' | 'monetization'>('basic');
+  const [openSection, setOpenSection] = useState<'basic' | 'perms'>('basic');
 
   // Build Time Estimation
   const [timeLeft, setTimeLeft] = useState(45);
@@ -513,19 +512,6 @@ const App: React.FC = () => {
         pushNotifications: false,
         screenRecording: false,
         alarmReminders: false
-    },
-    monetization: {
-        enabled: false,
-        appId: '',
-        bannerId: '',
-        iapEnabled: false,
-        iapMode: 'integrated',
-        subscriptionPlan: 'monthly',
-        storeUrl: '',
-        successUrl: '',
-        durationValue: 1, // Defaulting but hidden from UI
-        durationUnit: 'minutes', // Defaulting but hidden from UI
-        displayPrice: '$4.99'
     },
     isPremium: false
   });
@@ -644,19 +630,6 @@ const App: React.FC = () => {
   useEffect(() => {
     setConfig(prev => ({ ...prev, isPremium }));
   }, [isPremium, devMode]);
-
-  // Auto-enable Alarms & Reminders if monetization is enabled
-  useEffect(() => {
-    if (config.monetization.enabled || config.monetization.iapEnabled) {
-        setConfig(prev => ({
-            ...prev,
-            permissions: {
-                ...prev.permissions,
-                alarmReminders: true
-            }
-        }));
-    }
-  }, [config.monetization.enabled, config.monetization.iapEnabled]);
 
   // Build Timer Countdown Logic (Visual only for build process)
   useEffect(() => {
@@ -1345,193 +1318,6 @@ const App: React.FC = () => {
                                 {config.permissions[perm.id as keyof AppPermissions] && <CheckCircle2 size={16} className="text-indigo-400" />}
                             </button>
                         ))}
-                    </div>
-                </div>
-            </ConfigSection>
-
-            {/* Section 3: Monetization */}
-            <div className="hidden md:block h-px bg-white/5 mx-10"></div>
-            <ConfigSection 
-                title="Monetization" 
-                icon={CreditCard}
-                isOpen={openSection === 'monetization'}
-                onToggle={() => setOpenSection('monetization')}
-                className="md:border-none md:shadow-none md:rounded-none md:ring-0 md:bg-transparent"
-            >
-                <div className="p-6 md:p-10 space-y-8 border-t border-white/5 md:border-none bg-[#0F1115]">
-                    
-                    {/* ADMOB */}
-                    <div className="space-y-4">
-                         <div className="flex items-center justify-between">
-                            <div className="space-y-1">
-                                <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                                    Google AdMob
-                                    <div className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[9px] font-bold uppercase tracking-wider">BETA</div>
-                                </h4>
-                                <p className="text-xs text-slate-500">Display banner ads in your application.</p>
-                            </div>
-                            
-                            <button 
-                                onClick={() => {
-                                    setConfig(prev => ({...prev, monetization: { ...prev.monetization, enabled: !prev.monetization.enabled }}));
-                                }}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.monetization.enabled ? 'bg-indigo-500' : 'bg-slate-700'}`}
-                            >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.monetization.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                            </button>
-                        </div>
-                        
-                        {config.monetization.enabled && (
-                            <div className="grid gap-4 p-4 bg-white/5 rounded-xl animate-fade-in">
-                                <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">App ID</label>
-                                        <input
-                                            type="text"
-                                            className="w-full bg-[#15171C] border border-white/10 text-white rounded-xl py-3 px-4 focus:ring-1 focus:ring-indigo-500 outline-none text-sm font-mono"
-                                            placeholder="ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy"
-                                            value={config.monetization.appId}
-                                            onChange={e => setConfig(prev => ({...prev, monetization: {...prev.monetization, appId: e.target.value}}))}
-                                        />
-                                </div>
-                                <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Banner Ad Unit ID</label>
-                                        <input
-                                            type="text"
-                                            className="w-full bg-[#15171C] border border-white/10 text-white rounded-xl py-3 px-4 focus:ring-1 focus:ring-indigo-500 outline-none text-sm font-mono"
-                                            placeholder="ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz"
-                                            value={config.monetization.bannerId}
-                                            onChange={e => setConfig(prev => ({...prev, monetization: {...prev.monetization, bannerId: e.target.value}}))}
-                                        />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="h-px bg-white/5 w-full"></div>
-
-                    {/* SUBSCRIPTION SYSTEM */}
-                    <div className="space-y-4">
-                         <div className="flex items-center justify-between">
-                            <div className="space-y-1">
-                                <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                                    In-App Subscription System
-                                    <div className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-bold uppercase tracking-wider">NEW</div>
-                                </h4>
-                                <p className="text-xs text-slate-500">Monetize content with built-in access control.</p>
-                            </div>
-                            
-                            <button 
-                                onClick={() => {
-                                    setConfig(prev => ({...prev, monetization: { ...prev.monetization, iapEnabled: !prev.monetization.iapEnabled }}));
-                                }}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.monetization.iapEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
-                            >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.monetization.iapEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                            </button>
-                        </div>
-                        
-                        {config.monetization.iapEnabled && (
-                            <div className="space-y-6 p-4 bg-white/5 rounded-xl animate-fade-in border border-emerald-500/20">
-                                
-                                {/* IAP Mode Selection */}
-                                <div className="flex bg-[#0A0C10] p-1 rounded-lg border border-white/5">
-                                    <button 
-                                        onClick={() => setConfig(prev => ({...prev, monetization: {...prev.monetization, iapMode: 'integrated'}}))}
-                                        className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${config.monetization.iapMode === 'integrated' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                                    >
-                                        Integrated Flow
-                                    </button>
-                                    <button 
-                                        onClick={() => setConfig(prev => ({...prev, monetization: {...prev.monetization, iapMode: 'locked_app'}}))}
-                                        className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${config.monetization.iapMode === 'locked_app' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                                    >
-                                        Locked App UI
-                                    </button>
-                                </div>
-                                
-                                {/* Subscription Plan Selection */}
-                                <div className="space-y-3">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                        <CalendarDays size={14} />
-                                        Default Subscription Plan
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {(['monthly', 'yearly'] as const).map(plan => (
-                                            <button 
-                                                key={plan}
-                                                onClick={() => setConfig(prev => ({...prev, monetization: {...prev.monetization, subscriptionPlan: plan}}))}
-                                                className={`py-3 px-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${
-                                                    config.monetization.subscriptionPlan === plan 
-                                                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]' 
-                                                    : 'bg-[#0A0C10] border-white/5 text-slate-500 hover:bg-white/5'
-                                                }`}
-                                            >
-                                                <Clock size={16} />
-                                                <span className="text-xs font-bold uppercase tracking-widest">{plan}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Custom Price Display */}
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Display Price (Button Text)</label>
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            className="w-full bg-[#15171C] border border-white/10 text-white rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono"
-                                            placeholder="$4.99 / Month"
-                                            value={config.monetization.displayPrice}
-                                            onChange={e => setConfig(prev => ({...prev, monetization: {...prev.monetization, displayPrice: e.target.value}}))}
-                                        />
-                                        <DollarSign size={14} className="absolute left-3.5 top-3.5 text-slate-500" />
-                                    </div>
-                                </div>
-                                
-                                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-                                    <p className="text-[11px] text-emerald-200/80 font-mono">
-                                        <strong className="text-emerald-400">JS Trigger:</strong> Call <span className="bg-black/30 px-1 rounded text-white">window.WebToApp.lock()</span> from your website to open this payment screen manually.
-                                    </p>
-                                </div>
-
-                                <p className="text-[10px] text-slate-400 px-1">
-                                    {config.monetization.iapMode === 'integrated' 
-                                        ? "Use your own UI. We inject 'onNativePremiumActive()' JS when payment succeeds." 
-                                        : "We provide a premium overlay that blocks access until payment completes."}
-                                </p>
-
-                                {/* URL Configs */}
-                                <div className="grid gap-4">
-                                     <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Payment Page URL</label>
-                                        <div className="relative">
-                                            <input
-                                                type="url"
-                                                className="w-full bg-[#15171C] border border-white/10 text-white rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono"
-                                                placeholder="https://myshop.com/pay"
-                                                value={config.monetization.storeUrl}
-                                                onChange={e => setConfig(prev => ({...prev, monetization: {...prev.monetization, storeUrl: e.target.value}}))}
-                                            />
-                                            <ShoppingCart size={14} className="absolute left-3.5 top-3.5 text-slate-500" />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Success Redirect URL</label>
-                                        <div className="relative">
-                                            <input
-                                                type="url"
-                                                className="w-full bg-[#15171C] border border-white/10 text-white rounded-xl py-3 pl-10 pr-4 focus:ring-1 focus:ring-emerald-500 outline-none text-sm font-mono"
-                                                placeholder="https://myshop.com/success"
-                                                value={config.monetization.successUrl}
-                                                onChange={e => setConfig(prev => ({...prev, monetization: {...prev.monetization, successUrl: e.target.value}}))}
-                                            />
-                                            <CheckCircle2 size={14} className="absolute left-3.5 top-3.5 text-slate-500" />
-                                        </div>
-                                        <p className="text-[10px] text-slate-500 ml-1">The app listens for this URL in the popup window to trigger unlock.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
             </ConfigSection>
